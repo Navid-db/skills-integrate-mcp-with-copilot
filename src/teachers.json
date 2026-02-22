@@ -1,16 +1,16 @@
 {
   "teachers": [
     {
-      "username": "teacher1",
-      "password": "password123"
+      "username": "example-teacher-1",
+      "password": "CHANGEME_TEACHER_1"
     },
     {
-      "username": "teacher2",
-      "password": "password456"
+      "username": "example-teacher-2",
+      "password": "CHANGEME_TEACHER_2"
     },
     {
-      "username": "admin",
-      "password": "admin123"
+      "username": "example-admin",
+      "password": "CHANGEME_ADMIN"
     }
   ]
 }
