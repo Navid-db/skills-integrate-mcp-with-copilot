@@ -10,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 import os
 from pathlib import Path
+import json
+from pydantic import BaseModel
 
 app = FastAPI(title="Mergington High School API",
               description="API for viewing and signing up for extracurricular activities")
@@ -18,6 +20,21 @@ app = FastAPI(title="Mergington High School API",
 current_dir = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=os.path.join(Path(__file__).parent,
           "static")), name="static")
+
+# Pydantic models for request bodies
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+# Load teacher credentials from JSON file
+def load_teachers():
+    teachers_file = os.path.join(Path(__file__).parent, "teachers.json")
+    with open(teachers_file, 'r') as f:
+        data = json.load(f)
+    return data["teachers"]
+
+# In-memory authenticated users (simple implementation: maps session_id to username)
+authenticated_users = {}
 
 # In-memory activity database
 activities = {
@@ -89,14 +106,25 @@ def get_activities():
 
 
 @app.post("/activities/{activity_name}/signup")
-def signup_for_activity(activity_name: str, email: str):
-    """Sign up a student for an activity"""
+def signup_for_activity(activity_name: str, email: str, auth_token: str = None):
+    """Sign up a student for an activity - requires teacher authentication"""
+    # Check if user is authenticated (teacher)
+    if not auth_token or auth_token not in authenticated_users:
+        raise HTTPException(status_code=401, detail="Unauthorized. Only teachers can register students.")
+    
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
 
     # Get the specific activity
     activity = activities[activity_name]
+
+    # Check if activity is at capacity
+    if len(activity["participants"]) >= activity["max_participants"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Activity is at maximum capacity"
+        )
 
     # Validate student is not already signed up
     if email in activity["participants"]:
@@ -111,8 +139,12 @@ def signup_for_activity(activity_name: str, email: str):
 
 
 @app.delete("/activities/{activity_name}/unregister")
-def unregister_from_activity(activity_name: str, email: str):
-    """Unregister a student from an activity"""
+def unregister_from_activity(activity_name: str, email: str, auth_token: str = None):
+    """Unregister a student from an activity - requires teacher authentication"""
+    # Check if user is authenticated (teacher)
+    if not auth_token or auth_token not in authenticated_users:
+        raise HTTPException(status_code=401, detail="Unauthorized. Only teachers can unregister students.")
+    
     # Validate activity exists
     if activity_name not in activities:
         raise HTTPException(status_code=404, detail="Activity not found")
@@ -130,3 +162,37 @@ def unregister_from_activity(activity_name: str, email: str):
     # Remove student
     activity["participants"].remove(email)
     return {"message": f"Unregistered {email} from {activity_name}"}
+
+
+@app.post("/login")
+def login(credentials: LoginRequest):
+    """Authenticate a teacher with username and password"""
+    teachers = load_teachers()
+    
+    # Verify credentials
+    for teacher in teachers:
+        if teacher["username"] == credentials.username and teacher["password"] == credentials.password:
+            # Generate simple session token
+            import uuid
+            token = str(uuid.uuid4())
+            authenticated_users[token] = credentials.username
+            return {"token": token, "username": credentials.username}
+    
+    raise HTTPException(status_code=401, detail="Invalid username or password")
+
+
+@app.post("/logout")
+def logout(auth_token: str = None):
+    """Logout the authenticated user"""
+    if auth_token and auth_token in authenticated_users:
+        del authenticated_users[auth_token]
+        return {"message": "Logged out successfully"}
+    raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+@app.get("/auth-status")
+def check_auth_status(auth_token: str = None):
+    """Check if user is authenticated"""
+    if auth_token and auth_token in authenticated_users:
+        return {"authenticated": True, "username": authenticated_users[auth_token]}
+    return {"authenticated": False, "username": None}
