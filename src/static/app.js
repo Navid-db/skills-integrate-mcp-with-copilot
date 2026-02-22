@@ -34,7 +34,11 @@ document.addEventListener("DOMContentLoaded", () => {
     
     if (token) {
       try {
-        const response = await fetch("/auth-status?auth_token=" + encodeURIComponent(token));
+        const response = await fetch("/auth-status", {
+          headers: {
+            "Authorization": "Bearer " + token
+          }
+        });
         const data = await response.json();
         
         if (data.authenticated) {
