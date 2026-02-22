@@ -29,10 +29,24 @@ class LoginRequest(BaseModel):
 # Load teacher credentials from JSON file
 def load_teachers():
     teachers_file = os.path.join(Path(__file__).parent, "teachers.json")
-    with open(teachers_file, 'r') as f:
-        data = json.load(f)
-    return data["teachers"]
+    try:
+        with open(teachers_file, 'r') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        # Configuration/credentials file is missing
+        raise HTTPException(status_code=500, detail="Teacher credentials file not found.")
+    except json.JSONDecodeError:
+        # JSON is malformed or otherwise invalid
+        raise HTTPException(status_code=500, detail="Teacher credentials file contains invalid JSON.")
+    except OSError:
+        # Generic I/O error (permissions, encoding issues, etc.)
+        raise HTTPException(status_code=500, detail="Unable to read teacher credentials file.")
 
+    try:
+        return data["teachers"]
+    except (KeyError, TypeError):
+        # Expected 'teachers' key is missing or data is not a mapping
+        raise HTTPException(status_code=500, detail="Teacher credentials data is missing the 'teachers' field.")
 # In-memory authenticated users (simple implementation: maps session_id to username)
 authenticated_users = {}
 
