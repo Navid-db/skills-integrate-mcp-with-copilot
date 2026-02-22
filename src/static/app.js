@@ -89,11 +89,14 @@ document.addEventListener("DOMContentLoaded", () => {
         loginMessage.className = "success";
         loginMessage.classList.remove("hidden");
         
-        setTimeout(() => {
+        setTimeout(async () => {
           loginMessage.classList.add("hidden");
           loginModal.classList.add("hidden");
           loginForm.reset();
-          updateAuthUI();
+          const authenticated = await updateAuthUI();
+          if (authenticated) {
+            window.location.reload();
+          }
         }, 1500);
       } else {
         loginMessage.textContent = result.detail || "Login failed";
